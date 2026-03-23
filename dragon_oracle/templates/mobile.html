@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1">
+<title>Dragon Oracle AR</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #2b1055, #7597de);
+    color: #fff;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #status-bar {
+    background: linear-gradient(to bottom, rgba(20, 10, 40, 0.95), rgba(20, 10, 40, 0.7));
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: bold;
+    text-align: center;
+    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 10;
+    border-bottom: 2px solid #ffd700;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+    text-shadow: 1px 1px 2px #000;
+  }
+  #status-bar span { color: #ffd700; font-weight: 800; font-size: 16px; }
+  
+  #main {
+    flex: 1;
+    position: relative;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+  }
+  
+  video, #result-img {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  
+  #result-img {
+    z-index: 5;
+    opacity: 0; /* Hidden initially, faded in when processing starts */
+    transition: opacity 0.2s;
+  }
+
+  #error-msg {
+    position: absolute;
+    top: 60px;
+    background: linear-gradient(180deg, #ff4e50, #f9d423);
+    color: #1a0b2e;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    border: 2px solid #fff;
+    display: none;
+    z-index: 20;
+    text-align: center;
+  }
+
+  #controls {
+    background: linear-gradient(to top, rgba(20, 10, 40, 1), rgba(20, 10, 40, 0.6));
+    padding: 16px;
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 10;
+    border-top: 2px solid #ffd700;
+  }
+
+  button {
+    border: 2px solid #ffd700;
+    border-radius: 16px;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: 800;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+    box-shadow: 0 4px 0 #b38600, 0 5px 10px rgba(0,0,0,0.4);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.1s;
+    flex: 1;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  button:active { 
+    transform: translateY(4px); 
+    box-shadow: 0 0 0 #b38600, 0 2px 4px rgba(0,0,0,0.4);
+  }
+  
+  #btn-toggle { background: linear-gradient(180deg, #4ade80, #16a34a); color: #fff; flex: 2; }
+  #btn-toggle.active { background: linear-gradient(180deg, #f87171, #dc2626); color: #fff;border-color: #fff; box-shadow: 0 4px 0 #991b1b, 0 5px 10px rgba(0,0,0,0.4); }
+  #btn-reset { background: linear-gradient(180deg, #a78bfa, #7c3aed); color: #fff; border-color: #e5e7eb; box-shadow: 0 4px 0 #5b21b6, 0 5px 10px rgba(0,0,0,0.4); }
+</style>
+</head>
+<body>
+
+<div id="status-bar">
+  Grid: <span id="grid-size">0x0</span> | 
+  Cards revealed: <span id="revealed">0</span>/<span id="total">0</span> | 
+  FPS: <span id="fps">0</span>
+</div>
+
+<div id="main">
+  <video id="videoElement" autoplay playsinline muted></video>
+  <img id="result-img" alt="AR Overlay">
+  <div id="error-msg"></div>
+</div>
+
+<canvas id="canvasElement" style="display:none;"></canvas>
+
+<div id="controls">
+  <button id="btn-reset" onclick="resetMemory()">Reset</button>
+  <button id="btn-toggle" onclick="toggleProcessing()">Start Oracle</button>
+</div>
+
+<script>
+const video = document.getElementById('videoElement');
+const canvas = document.getElementById('canvasElement');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const resultImg = document.getElementById('result-img');
+const btnToggle = document.getElementById('btn-toggle');
+const errorMsg = document.getElementById('error-msg');
+
+const revealedEl = document.getElementById('revealed');
+const totalEl = document.getElementById('total');
+const gridEl = document.getElementById('grid-size');
+const fpsEl = document.getElementById('fps');
+
+let isProcessing = false;
+let isStreaming = false;
+let processInterval;
+let frameCount = 0;
+let lastFpsTime = Date.now();
+
+// 1. Initialize Camera
+async function initCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    
+    video.onloadedmetadata = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      isStreaming = true;
+    };
+  } catch (err) {
+    showError("Camera access denied or unavailable.");
+    console.error(err);
+  }
+}
+
+function toggleProcessing() {
+  if (!isStreaming) {
+    showError("Camera not ready.");
+    return;
+  }
+  
+  isProcessing = !isProcessing;
+  
+  if (isProcessing) {
+    btnToggle.textContent = 'Stop Oracle';
+    btnToggle.classList.add('active');
+    resultImg.style.opacity = '1';
+    errorMsg.style.display = 'none';
+    processNextFrame();
+  } else {
+    btnToggle.textContent = 'Start Oracle';
+    btnToggle.classList.remove('active');
+    resultImg.style.opacity = '0';
+  }
+}
+
+function processNextFrame() {
+  if (!isProcessing) return;
+
+  // Draw current video frame to canvas
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  // Convert to JPEG blob (~720p to save bandwidth)
+  canvas.toBlob(blob => {
+    if (!blob) {
+      setTimeout(processNextFrame, 100);
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('image', blob, 'frame.jpg');
+
+    const startTime = Date.now();
+
+    fetch('/capture', { method: 'POST', body: formData })
+      .then(resp => {
+        const contentType = resp.headers.get('content-type') || '';
+        
+        if (contentType.includes('image/')) {
+          // Success: Display AR composite frame
+          return resp.blob().then(imgBlob => {
+            const url = URL.createObjectURL(imgBlob);
+            const oldSrc = resultImg.src;
+            resultImg.src = url;
+            // Clean up old object url to prevent memory leak
+            resultImg.onload = () => URL.revokeObjectURL(oldSrc);
+            
+            updateMetrics(startTime);
+            fetchStatusAsync();
+          });
+        } else {
+          // We got JSON (likely error finding tiles / missing ArUco markers)
+          return resp.json().then(data => {
+            if (data.error) showError(data.error);
+            updateMetrics(startTime);
+          });
+        }
+      })
+      .catch(err => {
+        showError('Network error connecting to Oracle.');
+      })
+      .finally(() => {
+        // As long as we are still in processing mode, queue next frame instantly
+        if (isProcessing) requestAnimationFrame(processNextFrame);
+      });
+  }, 'image/jpeg', 0.8);
+}
+
+function updateMetrics(startTime) {
+  frameCount++;
+  const now = Date.now();
+  if (now - lastFpsTime >= 1000) {
+    fpsEl.textContent = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+}
+
+async function resetMemory() {
+  if (!confirm('Clear all memorized cards?')) return;
+  await fetch('/reset', { method: 'POST' });
+  revealedEl.textContent = '0';
+  totalEl.textContent = '0';
+  gridEl.textContent = '0x0';
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.style.display = 'block';
+  // Fade out
+  setTimeout(() => { errorMsg.style.display = 'none'; }, 3000);
+}
+
+// Fire and forget status check
+function fetchStatusAsync() {
+  fetch('/status')
+    .then(r => r.json())
+    .then(data => {
+      revealedEl.textContent = data.cards_revealed || 0;
+      totalEl.textContent = data.total_positions || 0;
+      gridEl.textContent = data.grid || '0x0';
+    }).catch(e => {});
+}
+
+// Start camera immediately
+initCamera();
+</script>
+</body>
+</html>

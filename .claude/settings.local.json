@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 5 python -c \":*)",
+      "Bash(python -m pytest tests/ -v --tb=short)"
+    ]
+  }
+}
