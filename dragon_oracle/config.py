@@ -27,6 +27,15 @@ class OracleConfig:
     tile_max_area: int = 8000
     tile_aspect_ratio_range: Tuple[float, float] = (0.5, 1.5)
     tile_blur_kernel: int = 5
+    tile_min_dimension: int = 15
+    tile_max_dimension: int = 80
+    tile_min_rectangularity: float = 0.55
+    tile_duplicate_distance: float = 25.0
+    tile_canny_low: int = 20
+    tile_canny_high: int = 80
+    tile_hsv_sat_max: int = 100
+    tile_hsv_val_min: int = 160
+    tile_morph_close_iterations: int = 3
 
     # Grid clustering
     grid_cluster_tolerance: float = 0.4
