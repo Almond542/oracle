@@ -49,7 +49,7 @@ class TileDetector:
         edges = cv2.Canny(blurred, canny_low, canny_high)
         closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=self._morph_close_iters)
         contours1, _ = cv2.findContours(
-            closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
 
         # Method 2: White/light card border detection (low sat + high val)
