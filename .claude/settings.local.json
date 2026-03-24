@@ -3,11 +3,13 @@
     "allow": [
       "Bash(timeout 5 python -c \":*)",
       "Bash(python -m pytest tests/ -v --tb=short)",
-      "Bash(python -m pytest tests/ -v)"
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python verify_tiles.py)",
+      "Bash(gh pr:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "code-review-graph"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
