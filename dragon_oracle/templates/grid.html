@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragon Oracle — Grid</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d1a;color:#e0e0e0;font-family:system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+
+/* ── Header ── */
+header{background:#13132a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a4a;flex-shrink:0}
+h1{font-size:18px;color:#ffd700;font-weight:700;letter-spacing:.5px}
+#info{font-size:13px;color:#888;display:flex;gap:18px;align-items:center}
+#revealedCount{color:#ffd700;font-weight:600}
+#lastUpdate{font-size:11px;color:#555}
+#btnClear{padding:6px 14px;background:#2a1a3a;color:#c084fc;border:1px solid #7e22ce;border-radius:6px;font-size:13px;cursor:pointer}
+#btnClear:hover{background:#3a1a4a}
+
+/* ── Grid container ── */
+main{flex:1;padding:16px;display:flex;justify-content:center;align-items:flex-start}
+#grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;width:100%;max-width:900px}
+
+/* ── Cells ── */
+.cell{aspect-ratio:3/4;border-radius:5px;border:1px solid #2a2a4a;position:relative;overflow:hidden;transition:box-shadow .15s;background:#13132a}
+.cell.occupied{cursor:grab;border-color:#3a3a6a}
+.cell.occupied:hover{box-shadow:0 0 0 2px #ffd700;z-index:2}
+.cell.occupied:active{cursor:grabbing}
+.cell.drag-over{box-shadow:0 0 0 2px #22c55e;background:#1a3a1a}
+.cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.cell-label{position:absolute;bottom:2px;right:3px;font-size:8px;color:rgba(255,255,255,.4);pointer-events:none}
+.cell-label-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;color:#2a2a4a;pointer-events:none}
+
+/* ── Drag ghost ── */
+.cell.dragging{opacity:.4}
+
+/* ── Status bar ── */
+footer{background:#13132a;padding:6px 20px;font-size:11px;color:#555;border-top:1px solid #1a1a3a;display:flex;justify-content:space-between}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:16px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dragon Oracle — 6×10 Grid</h1>
+  <div id="info">
+    <span><span id="revealedCount">0</span> / 60 revealed</span>
+    <span id="lastUpdate">—</span>
+    <button id="btnClear" onclick="clearBoard()">Reset Board</button>
+  </div>
+</header>
+
+<main>
+  <div id="grid"></div>
+</main>
+
+<footer>
+  <span>Drag cards between cells to reposition &nbsp;|&nbsp; Auto-refreshes every 10s</span>
+  <span id="footerStatus">—</span>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+const ROWS = 6, COLS = 10;
+let gridData = {};      // "row,col" -> base64 JPEG string
+let dragSrc  = null;    // {row, col} of the cell being dragged
+let dragging = false;
+let refreshTimer;
+
+// ── Fetch and render ──────────────────────────────────────────────────────
+async function loadGrid() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    gridData = d.grid || {};
+    document.getElementById('revealedCount').textContent = d.revealed;
+    document.getElementById('lastUpdate').textContent =
+      'Updated ' + new Date().toLocaleTimeString();
+    document.getElementById('footerStatus').textContent =
+      `${d.revealed}/${d.total} revealed  |  ${d.pending || 0} pending placement`;
+    renderGrid();
+  } catch {
+    document.getElementById('lastUpdate').textContent = 'Connection error';
+  }
+}
+
+function renderGrid() {
+  const container = document.getElementById('grid');
+  container.innerHTML = '';
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const key = `${r},${c}`;
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      if (gridData[key]) {
+        cell.classList.add('occupied');
+        const img = document.createElement('img');
+        img.src = `data:image/jpeg;base64,${gridData[key]}`;
+        img.alt = `Card at (${r+1},${c+1})`;
+        cell.appendChild(img);
+
+        const lbl = document.createElement('div');
+        lbl.className = 'cell-label';
+        lbl.textContent = `${r+1},${c+1}`;
+        cell.appendChild(lbl);
+
+        // Drag events
+        cell.draggable = true;
+        cell.addEventListener('dragstart', onDragStart);
+        cell.addEventListener('dragend',   onDragEnd);
+      } else {
+        const lbl = document.createElement('div');
+        lbl.className = 'cell-label-empty';
+        lbl.textContent = `${r+1},${c+1}`;
+        cell.appendChild(lbl);
+      }
+
+      // Drop target events (all cells)
+      cell.addEventListener('dragover',  onDragOver);
+      cell.addEventListener('dragleave', onDragLeave);
+      cell.addEventListener('drop',      onDrop);
+
+      container.appendChild(cell);
+    }
+  }
+}
+
+// ── Drag-and-drop ─────────────────────────────────────────────────────────
+function onDragStart(e) {
+  dragSrc = { row: +e.currentTarget.dataset.r, col: +e.currentTarget.dataset.c };
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', JSON.stringify(dragSrc));
+  dragging = true;
+  pauseAutoRefresh();
+}
+
+function onDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  dragging = false;
+  resumeAutoRefresh();
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+async function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+
+  const toRow = +e.currentTarget.dataset.r;
+  const toCol = +e.currentTarget.dataset.c;
+
+  if (!dragSrc) return;
+  if (dragSrc.row === toRow && dragSrc.col === toCol) return;
+
+  try {
+    const resp = await fetch('/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_row: dragSrc.row, from_col: dragSrc.col,
+        to_row:   toRow,       to_col:   toCol,
+      })
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      await loadGrid();
+    } else if (data.status === 'occupied') {
+      showToast('Target cell is already occupied.');
+    } else {
+      showToast('Move failed: ' + data.status);
+    }
+  } catch {
+    showToast('Network error during move.');
+  }
+  dragSrc = null;
+}
+
+// ── Auto-refresh ──────────────────────────────────────────────────────────
+function startAutoRefresh() {
+  refreshTimer = setInterval(() => { if (!dragging) loadGrid(); }, 10000);
+}
+function pauseAutoRefresh() { clearInterval(refreshTimer); }
+function resumeAutoRefresh() { startAutoRefresh(); }
+
+// ── Reset ─────────────────────────────────────────────────────────────────
+async function clearBoard() {
+  if (!confirm('Clear all cards from the grid?')) return;
+  await fetch('/reset', { method: 'POST' });
+  await loadGrid();
+  showToast('Board cleared.');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+let _tt;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadGrid();
+startAutoRefresh();
+</script>
+</body>
+</html>

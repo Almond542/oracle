@@ -2,153 +2,85 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1">
-<title>Dragon Oracle AR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dragon Oracle</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #2b1055, #7597de);
-    color: #fff;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  #status-bar {
-    background: linear-gradient(to bottom, rgba(20, 10, 40, 0.95), rgba(20, 10, 40, 0.7));
-    padding: 12px 16px;
-    font-size: 15px;
-    font-weight: bold;
-    text-align: center;
-    flex-shrink: 0;
-    position: absolute;
-    top: 0;
-    width: 100%;
-    z-index: 10;
-    border-bottom: 2px solid #ffd700;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-    text-shadow: 1px 1px 2px #000;
-  }
-  #status-bar span { color: #ffd700; font-weight: 800; font-size: 16px; }
-  
-  #main {
-    flex: 1;
-    position: relative;
-    background: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
-  }
-  
-  video, #result-img {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-  
-  #result-img {
-    z-index: 5;
-    opacity: 0; /* Hidden initially, faded in when processing starts */
-    transition: opacity 0.2s;
-  }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#0d0d1a;color:#e0e0e0;font-family:system-ui,sans-serif;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
 
-  #error-msg {
-    position: absolute;
-    top: 60px;
-    background: linear-gradient(180deg, #ff4e50, #f9d423);
-    color: #1a0b2e;
-    padding: 10px 20px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: bold;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-    border: 2px solid #fff;
-    display: none;
-    z-index: 20;
-    text-align: center;
-  }
+/* ── Status bar ── */
+#statusBar{background:#13132a;padding:6px 12px;font-size:13px;color:#aaa;display:flex;justify-content:space-between;flex-shrink:0}
+#statusBar span{color:#ffd700;font-weight:600}
 
-  #controls {
-    background: linear-gradient(to top, rgba(20, 10, 40, 1), rgba(20, 10, 40, 0.6));
-    padding: 16px;
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    align-items: center;
-    flex-shrink: 0;
-    z-index: 10;
-    border-top: 2px solid #ffd700;
-  }
+/* ── Screens ── */
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
 
-  button {
-    border: 2px solid #ffd700;
-    border-radius: 16px;
-    padding: 14px 20px;
-    font-size: 16px;
-    font-weight: 800;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-    box-shadow: 0 4px 0 #b38600, 0 5px 10px rgba(0,0,0,0.4);
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.1s;
-    flex: 1;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-  button:active { 
-    transform: translateY(4px); 
-    box-shadow: 0 0 0 #b38600, 0 2px 4px rgba(0,0,0,0.4);
-  }
-  
-  #btn-toggle { background: linear-gradient(180deg, #4ade80, #16a34a); color: #fff; flex: 2; }
-  #btn-toggle.active { background: linear-gradient(180deg, #f87171, #dc2626); color: #fff;border-color: #fff; box-shadow: 0 4px 0 #991b1b, 0 5px 10px rgba(0,0,0,0.4); }
-  #btn-reset { background: linear-gradient(180deg, #a78bfa, #7c3aed); color: #fff; border-color: #e5e7eb; box-shadow: 0 4px 0 #5b21b6, 0 5px 10px rgba(0,0,0,0.4); }
+/* ══ Screen A — Camera ══════════════════════════════════════════ */
+#camWrap{position:relative;flex:1;overflow:hidden;background:#000}
+#video{width:100%;height:100%;object-fit:cover}
+#frameGuide{position:absolute;inset:8%;border:2px dashed rgba(255,215,0,.5);border-radius:8px;pointer-events:none}
+#spinner{display:none;position:absolute;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:14px;color:#ffd700}
+#spinner.show{display:flex}
+.spinner-ring{width:44px;height:44px;border:4px solid #333;border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#camControls{display:flex;gap:10px;padding:12px;background:#13132a;flex-shrink:0}
+#btnCapture{flex:1;padding:14px;background:linear-gradient(135deg,#d4a017,#ffd700);color:#0d0d1a;font-size:17px;font-weight:700;border:none;border-radius:10px;cursor:pointer;box-shadow:0 4px 0 #8a6a00}
+#btnCapture:active{transform:translateY(2px);box-shadow:0 2px 0 #8a6a00}
+#btnReset{padding:14px 18px;background:#2a1a3a;color:#c084fc;border:1px solid #7e22ce;border-radius:10px;font-size:14px;cursor:pointer}
+
+/* ══ Screen B — Result ══════════════════════════════════════════ */
+#resultScreen{align-items:center;justify-content:center;gap:14px;padding:16px}
+#resultGrid{width:100%;max-width:380px;border-radius:8px;border:2px solid #333}
+#resultMsg{color:#22c55e;font-size:15px;text-align:center;padding:0 12px}
+#btnDone{padding:14px 40px;background:linear-gradient(135deg,#d4a017,#ffd700);color:#0d0d1a;font-size:17px;font-weight:700;border:none;border-radius:10px;cursor:pointer}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#444;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
 </style>
 </head>
 <body>
 
-<div id="status-bar">
-  Grid: <span id="grid-size">0x0</span> | 
-  Cards revealed: <span id="revealed">0</span>/<span id="total">0</span> | 
-  FPS: <span id="fps">0</span>
+<div id="statusBar">
+  <span id="statusText">0 / 60 revealed</span>
+  <span>Dragon Oracle</span>
 </div>
 
-<div id="main">
-  <video id="videoElement" autoplay playsinline muted></video>
-  <img id="result-img" alt="AR Overlay">
-  <div id="error-msg"></div>
+<!-- ══ Screen A: Camera ══════════════════════════════════════════ -->
+<div id="camScreen" class="screen active">
+  <div id="camWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="frameGuide"></div>
+    <div id="spinner">
+      <div class="spinner-ring"></div>
+      <span id="spinnerMsg">Detecting cards…</span>
+    </div>
+  </div>
+  <div id="camControls">
+    <button id="btnReset" onclick="resetBoard()">Reset</button>
+    <button id="btnCapture" onclick="capturePhoto()">📸 Capture</button>
+  </div>
 </div>
 
-<canvas id="canvasElement" style="display:none;"></canvas>
-
-<div id="controls">
-  <button id="btn-reset" onclick="resetMemory()">Reset</button>
-  <button id="btn-toggle" onclick="toggleProcessing()">Start Oracle</button>
+<!-- ══ Screen B: Result ══════════════════════════════════════════ -->
+<div id="resultScreen" class="screen">
+  <img id="resultGrid" src="" alt="Current grid">
+  <p id="resultMsg"></p>
+  <button id="btnDone" onclick="showScreen('camScreen')">Done ✓</button>
 </div>
+
+<canvas id="canvas" style="display:none"></canvas>
+<div id="toast"></div>
 
 <script>
-const video = document.getElementById('videoElement');
-const canvas = document.getElementById('canvasElement');
-const ctx = canvas.getContext('2d', { willReadFrequently: true });
-const resultImg = document.getElementById('result-img');
-const btnToggle = document.getElementById('btn-toggle');
-const errorMsg = document.getElementById('error-msg');
+const video      = document.getElementById('video');
+const canvas     = document.getElementById('canvas');
+const ctx        = canvas.getContext('2d');
+const spinner    = document.getElementById('spinner');
+const spinnerMsg = document.getElementById('spinnerMsg');
 
-const revealedEl = document.getElementById('revealed');
-const totalEl = document.getElementById('total');
-const gridEl = document.getElementById('grid-size');
-const fpsEl = document.getElementById('fps');
-
-let isProcessing = false;
-let isStreaming = false;
-let processInterval;
-let frameCount = 0;
-let lastFpsTime = Date.now();
-
-// 1. Initialize Camera
+// ── Camera ────────────────────────────────────────────────────────────────
 async function initCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -156,129 +88,92 @@ async function initCamera() {
       audio: false
     });
     video.srcObject = stream;
-    
-    video.onloadedmetadata = () => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      isStreaming = true;
-    };
-  } catch (err) {
-    showError("Camera access denied or unavailable.");
-    console.error(err);
+  } catch {
+    showToast('Camera access denied. Open via HTTPS and accept the cert warning once.');
   }
 }
-
-function toggleProcessing() {
-  if (!isStreaming) {
-    showError("Camera not ready.");
-    return;
-  }
-  
-  isProcessing = !isProcessing;
-  
-  if (isProcessing) {
-    btnToggle.textContent = 'Stop Oracle';
-    btnToggle.classList.add('active');
-    resultImg.style.opacity = '1';
-    errorMsg.style.display = 'none';
-    processNextFrame();
-  } else {
-    btnToggle.textContent = 'Start Oracle';
-    btnToggle.classList.remove('active');
-    resultImg.style.opacity = '0';
-  }
-}
-
-function processNextFrame() {
-  if (!isProcessing) return;
-
-  // Draw current video frame to canvas
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-  // Convert to JPEG blob (~720p to save bandwidth)
-  canvas.toBlob(blob => {
-    if (!blob) {
-      setTimeout(processNextFrame, 100);
-      return;
-    }
-    
-    const formData = new FormData();
-    formData.append('image', blob, 'frame.jpg');
-
-    const startTime = Date.now();
-
-    fetch('/capture', { method: 'POST', body: formData })
-      .then(resp => {
-        const contentType = resp.headers.get('content-type') || '';
-        
-        if (contentType.includes('image/')) {
-          // Success: Display AR composite frame
-          return resp.blob().then(imgBlob => {
-            const url = URL.createObjectURL(imgBlob);
-            const oldSrc = resultImg.src;
-            resultImg.src = url;
-            // Clean up old object url to prevent memory leak
-            resultImg.onload = () => URL.revokeObjectURL(oldSrc);
-            
-            updateMetrics(startTime);
-            fetchStatusAsync();
-          });
-        } else {
-          // We got JSON (likely error finding tiles / missing ArUco markers)
-          return resp.json().then(data => {
-            if (data.error) showError(data.error);
-            updateMetrics(startTime);
-          });
-        }
-      })
-      .catch(err => {
-        showError('Network error connecting to Oracle.');
-      })
-      .finally(() => {
-        // As long as we are still in processing mode, queue next frame instantly
-        if (isProcessing) requestAnimationFrame(processNextFrame);
-      });
-  }, 'image/jpeg', 0.8);
-}
-
-function updateMetrics(startTime) {
-  frameCount++;
-  const now = Date.now();
-  if (now - lastFpsTime >= 1000) {
-    fpsEl.textContent = frameCount;
-    frameCount = 0;
-    lastFpsTime = now;
-  }
-}
-
-async function resetMemory() {
-  if (!confirm('Clear all memorized cards?')) return;
-  await fetch('/reset', { method: 'POST' });
-  revealedEl.textContent = '0';
-  totalEl.textContent = '0';
-  gridEl.textContent = '0x0';
-}
-
-function showError(msg) {
-  errorMsg.textContent = msg;
-  errorMsg.style.display = 'block';
-  // Fade out
-  setTimeout(() => { errorMsg.style.display = 'none'; }, 3000);
-}
-
-// Fire and forget status check
-function fetchStatusAsync() {
-  fetch('/status')
-    .then(r => r.json())
-    .then(data => {
-      revealedEl.textContent = data.cards_revealed || 0;
-      totalEl.textContent = data.total_positions || 0;
-      gridEl.textContent = data.grid || '0x0';
-    }).catch(e => {});
-}
-
-// Start camera immediately
 initCamera();
+
+// ── Status polling ────────────────────────────────────────────────────────
+async function fetchStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    document.getElementById('statusText').textContent =
+      `${d.revealed} / ${d.total} revealed`;
+  } catch {}
+}
+fetchStatus();
+setInterval(fetchStatus, 12000);
+
+// ── Screen helper ─────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Capture photo ─────────────────────────────────────────────────────────
+async function capturePhoto() {
+  document.getElementById('btnCapture').disabled = true;
+  spinnerMsg.textContent = 'Detecting cards…';
+  spinner.classList.add('show');
+
+  canvas.width  = video.videoWidth  || 1280;
+  canvas.height = video.videoHeight || 720;
+  ctx.drawImage(video, 0, 0);
+
+  canvas.toBlob(async (blob) => {
+    try {
+      const fd = new FormData();
+      fd.append('image', blob, 'capture.jpg');
+      const resp = await fetch('/capture', { method: 'POST', body: fd });
+      const data = await resp.json();
+
+      spinner.classList.remove('show');
+      document.getElementById('btnCapture').disabled = false;
+
+      if (data.error) { showToast(data.error); return; }
+
+      await fetchStatus();
+
+      if (data.count === 0) {
+        showToast('No face-up cards detected — try again.');
+        return;
+      }
+
+      // Show result screen with updated grid
+      document.getElementById('resultGrid').src = '/grid.jpg?t=' + Date.now();
+      const msg = data.placed > 0
+        ? `${data.placed} card${data.placed > 1 ? 's' : ''} added to grid (${data.revealed}/${data.total} total)`
+        : `${data.count} card${data.count > 1 ? 's' : ''} detected but cells already occupied`;
+      document.getElementById('resultMsg').textContent = msg;
+      showScreen('resultScreen');
+
+    } catch {
+      spinner.classList.remove('show');
+      document.getElementById('btnCapture').disabled = false;
+      showToast('Connection error — is the server running?');
+    }
+  }, 'image/jpeg', 0.9);
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────
+async function resetBoard() {
+  if (!confirm('Clear all placed cards and start over?')) return;
+  await fetch('/reset', { method: 'POST' });
+  await fetchStatus();
+  showToast('Board cleared.');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+let _tt;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => t.classList.remove('show'), 3500);
+}
 </script>
 </body>
 </html>

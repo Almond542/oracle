@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragon Oracle</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d1a;color:#e0e0e0;font-family:system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+
+header{background:#13132a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2a2a4a}
+h1{font-size:18px;color:#ffd700;font-weight:700}
+#headerInfo{font-size:13px;color:#888;display:flex;gap:14px;align-items:center}
+#revealedCount{color:#ffd700;font-weight:600}
+
+main{flex:1;padding:20px;max-width:1200px;margin:0 auto;width:100%}
+
+/* ── Calibration ── */
+#calibPanel{display:flex;flex-direction:column;gap:14px;align-items:center}
+#calibPanel h2{color:#ffd700;font-size:16px}
+#calibPanel p{color:#888;font-size:13px;text-align:center;max-width:500px}
+
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-gold{background:linear-gradient(135deg,#d4a017,#ffd700);color:#0d0d1a}
+.btn-green{background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff}
+.btn-dim{background:#2a2a4a;color:#aaa;border:1px solid #3a3a5a}
+
+#canvasWrap{position:relative;display:none;border:2px solid #333;border-radius:6px;overflow:hidden;cursor:crosshair}
+#canvasWrap canvas{display:block}
+
+.calib-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+.calib-row label{font-size:13px;color:#aaa}
+.calib-row select{background:#1a1a2e;color:#e0e0e0;border:1px solid #3a3a5a;border-radius:4px;padding:4px 8px;font-size:13px}
+
+/* ── Game mode ── */
+#gamePanel{display:none;flex-direction:column;gap:16px}
+#captureBar{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+#resultBanner{display:none;background:#1a2a1a;border:1px solid #22c55e;border-radius:8px;padding:10px 16px;text-align:center;color:#22c55e;font-size:14px}
+#resultBanner.error{background:#2a1a1a;border-color:#ef4444;color:#ef4444}
+
+/* ── Grid ── */
+#gridWrap{display:flex;justify-content:center}
+#grid{display:grid;gap:4px}
+.cell{aspect-ratio:3/4;border-radius:4px;border:1px solid #2a2a4a;position:relative;overflow:hidden;background:#13132a;cursor:default;min-width:40px}
+.cell.occupied{cursor:grab;border-color:#3a3a6a}
+.cell.occupied:hover{box-shadow:0 0 0 2px #ffd700;z-index:2}
+.cell.occupied:active{cursor:grabbing}
+.cell.drag-over{box-shadow:0 0 0 2px #22c55e;background:#1a3a1a}
+.cell.dragging{opacity:.4}
+.cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.cell-label{position:absolute;bottom:1px;right:2px;font-size:7px;color:rgba(255,255,255,.35);pointer-events:none}
+.cell-label-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:8px;color:#2a2a4a;pointer-events:none}
+.cell.highlight{animation:pulse .6s ease-in-out 2}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 2px transparent}50%{box-shadow:0 0 0 3px #22c55e}}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 18px;border-radius:16px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dragon Oracle</h1>
+  <div id="headerInfo">
+    <span><span id="revealedCount">0</span> / <span id="totalCount">60</span> revealed</span>
+    <button class="btn btn-dim" id="btnRecalib" style="display:none" onclick="doRecalibrate()">Recalibrate</button>
+  </div>
+</header>
+
+<main>
+  <!-- ══ Calibration Panel ══ -->
+  <div id="calibPanel">
+    <h2>Calibration</h2>
+    <p>1. Make sure the game board is visible on screen with ALL cards face-down.<br>
+       2. Click "Take Screenshot", then draw a rectangle around the game board.</p>
+
+    <button class="btn btn-gold" id="btnScreenshot" onclick="takeScreenshot()">Take Screenshot</button>
+
+    <div id="canvasWrap">
+      <canvas id="screenshotCanvas"></canvas>
+      <canvas id="overlayCanvas" style="position:absolute;top:0;left:0"></canvas>
+    </div>
+
+    <div class="calib-row">
+      <label>Rows: <select id="selRows"></select></label>
+      <label>Cols: <select id="selCols"></select></label>
+      <button class="btn btn-dim" id="btnSetRegion" disabled onclick="setRegion()">Set Region</button>
+    </div>
+
+    <button class="btn btn-green" id="btnSetRef" disabled onclick="setReference()">Capture Reference (all face-down)</button>
+  </div>
+
+  <!-- ══ Game Panel ══ -->
+  <div id="gamePanel">
+    <div id="captureBar">
+      <button class="btn btn-gold" id="btnCapture" onclick="doCapture()">Capture (Space)</button>
+      <button class="btn btn-dim" onclick="doReset()">Reset Board</button>
+    </div>
+    <div id="resultBanner"></div>
+    <div id="gridWrap"><div id="grid"></div></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──
+let calibrated = false;
+let rows = 6, cols = 10;
+let screenshotData = null; // {image: b64, width, height}
+let rect = null;           // {x1, y1, x2, y2} in real pixels
+let scaleX = 1, scaleY = 1;
+let drawing = false;
+let gridData = {};
+let dragSrc = null;
+
+// ── Init selects ──
+const selRows = document.getElementById('selRows');
+const selCols = document.getElementById('selCols');
+for (let i = 1; i <= 10; i++) {
+  const oR = document.createElement('option');
+  oR.value = i; oR.textContent = i; if (i === 6) oR.selected = true;
+  selRows.appendChild(oR);
+  const oC = document.createElement('option');
+  oC.value = i; oC.textContent = i; if (i === 10) oC.selected = true;
+  selCols.appendChild(oC);
+}
+
+// ── Check initial status ──
+(async function() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    if (d.calibrated) {
+      calibrated = true;
+      rows = d.rows; cols = d.cols;
+      gridData = d.grid || {};
+      showGamePanel();
+      updateCounts(d);
+      renderGrid();
+    }
+  } catch {}
+})();
+
+// ═══════════════════════════════════════════════════════════════════
+// Calibration
+// ═══════════════════════════════════════════════════════════════════
+
+async function takeScreenshot() {
+  document.getElementById('btnScreenshot').disabled = true;
+  try {
+    const r = await fetch('/calibrate/screenshot', {method:'POST'});
+    const d = await r.json();
+    screenshotData = d;
+    showScreenshot(d);
+  } catch { showToast('Failed to take screenshot.'); }
+  document.getElementById('btnScreenshot').disabled = false;
+}
+
+function showScreenshot(data) {
+  const wrap = document.getElementById('canvasWrap');
+  const canvas = document.getElementById('screenshotCanvas');
+  const overlay = document.getElementById('overlayCanvas');
+  const img = new Image();
+  img.onload = function() {
+    // Scale to fit max 900px wide
+    const maxW = Math.min(900, window.innerWidth - 60);
+    const scale = maxW / data.width;
+    const dispW = Math.round(data.width * scale);
+    const dispH = Math.round(data.height * scale);
+    canvas.width = dispW; canvas.height = dispH;
+    overlay.width = dispW; overlay.height = dispH;
+    scaleX = data.width / dispW;
+    scaleY = data.height / dispH;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, dispW, dispH);
+    wrap.style.display = 'block';
+    setupDrawing(overlay);
+  };
+  img.src = 'data:image/jpeg;base64,' + data.image;
+}
+
+function setupDrawing(overlay) {
+  const ctx = overlay.getContext('2d');
+  let startX, startY;
+
+  overlay.onmousedown = (e) => {
+    const r = overlay.getBoundingClientRect();
+    startX = e.clientX - r.left;
+    startY = e.clientY - r.top;
+    drawing = true;
+  };
+  overlay.onmousemove = (e) => {
+    if (!drawing) return;
+    const r = overlay.getBoundingClientRect();
+    const curX = e.clientX - r.left;
+    const curY = e.clientY - r.top;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(startX, startY, curX - startX, curY - startY);
+  };
+  overlay.onmouseup = (e) => {
+    if (!drawing) return;
+    drawing = false;
+    const r = overlay.getBoundingClientRect();
+    const endX = e.clientX - r.left;
+    const endY = e.clientY - r.top;
+    // Normalize (ensure positive width/height)
+    const x1 = Math.min(startX, endX), x2 = Math.max(startX, endX);
+    const y1 = Math.min(startY, endY), y2 = Math.max(startY, endY);
+    rect = {
+      x1: Math.round(x1 * scaleX), y1: Math.round(y1 * scaleY),
+      x2: Math.round(x2 * scaleX), y2: Math.round(y2 * scaleY)
+    };
+    document.getElementById('btnSetRegion').disabled = false;
+  };
+}
+
+async function setRegion() {
+  if (!rect) return;
+  rows = parseInt(selRows.value);
+  cols = parseInt(selCols.value);
+  try {
+    const r = await fetch('/calibrate/set-region', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        left: rect.x1, top: rect.y1,
+        width: rect.x2 - rect.x1, height: rect.y2 - rect.y1,
+        rows, cols
+      })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showToast('Region set. Now click "Capture Reference".');
+      document.getElementById('btnSetRef').disabled = false;
+    }
+  } catch { showToast('Failed to set region.'); }
+}
+
+async function setReference() {
+  document.getElementById('btnSetRef').disabled = true;
+  try {
+    const r = await fetch('/calibrate/set-reference', {method:'POST'});
+    const d = await r.json();
+    if (d.status === 'ok') {
+      calibrated = true;
+      showToast('Calibrated! Ready to play.');
+      showGamePanel();
+    } else {
+      showToast(d.error || 'Calibration failed.');
+      document.getElementById('btnSetRef').disabled = false;
+    }
+  } catch {
+    showToast('Failed to capture reference.');
+    document.getElementById('btnSetRef').disabled = false;
+  }
+}
+
+function showGamePanel() {
+  document.getElementById('calibPanel').style.display = 'none';
+  document.getElementById('gamePanel').style.display = 'flex';
+  document.getElementById('btnRecalib').style.display = 'inline-block';
+  document.getElementById('totalCount').textContent = rows * cols;
+  renderGrid();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Capture
+// ═══════════════════════════════════════════════════════════════════
+
+async function doCapture() {
+  document.getElementById('btnCapture').disabled = true;
+  const banner = document.getElementById('resultBanner');
+  banner.style.display = 'none';
+  try {
+    const r = await fetch('/capture', {method:'POST'});
+    const d = await r.json();
+    if (d.error) {
+      banner.className = 'error'; banner.textContent = d.error;
+      banner.style.display = 'block';
+    } else if (d.placed > 0) {
+      const posStr = d.positions.map(p => `(${p.row+1},${p.col+1})`).join(' and ');
+      banner.className = '';
+      banner.textContent = `Found ${d.placed} new card${d.placed>1?'s':''} at ${posStr}`;
+      banner.style.display = 'block';
+      await loadGrid();
+    } else if (d.detected > 0) {
+      banner.className = '';
+      banner.textContent = `${d.detected} card${d.detected>1?'s':''} detected but already recorded.`;
+      banner.style.display = 'block';
+    } else {
+      showToast('No new flipped cards detected.');
+    }
+    updateCounts(d);
+  } catch { showToast('Capture failed.'); }
+  document.getElementById('btnCapture').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Grid
+// ═══════════════════════════════════════════════════════════════════
+
+async function loadGrid() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    gridData = d.grid || {};
+    updateCounts(d);
+    renderGrid();
+  } catch {}
+}
+
+function updateCounts(d) {
+  document.getElementById('revealedCount').textContent = d.revealed || 0;
+  document.getElementById('totalCount').textContent = d.total || rows * cols;
+}
+
+function renderGrid() {
+  const container = document.getElementById('grid');
+  container.innerHTML = '';
+  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const key = `${r},${c}`;
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      if (gridData[key]) {
+        cell.classList.add('occupied');
+        const img = document.createElement('img');
+        img.src = `data:image/jpeg;base64,${gridData[key]}`;
+        img.alt = `Card (${r+1},${c+1})`;
+        cell.appendChild(img);
+        const lbl = document.createElement('div');
+        lbl.className = 'cell-label';
+        lbl.textContent = `${r+1},${c+1}`;
+        cell.appendChild(lbl);
+        cell.draggable = true;
+        cell.addEventListener('dragstart', onDragStart);
+        cell.addEventListener('dragend', onDragEnd);
+      } else {
+        const lbl = document.createElement('div');
+        lbl.className = 'cell-label-empty';
+        lbl.textContent = `${r+1},${c+1}`;
+        cell.appendChild(lbl);
+      }
+      cell.addEventListener('dragover', onDragOver);
+      cell.addEventListener('dragleave', onDragLeave);
+      cell.addEventListener('drop', onDrop);
+      container.appendChild(cell);
+    }
+  }
+}
+
+// ── Drag and drop ──
+function onDragStart(e) {
+  dragSrc = {row: +e.currentTarget.dataset.r, col: +e.currentTarget.dataset.c};
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function onDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+async function onDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const toR = +e.currentTarget.dataset.r, toC = +e.currentTarget.dataset.c;
+  if (!dragSrc || (dragSrc.row===toR && dragSrc.col===toC)) return;
+  try {
+    const r = await fetch('/move', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({from_row:dragSrc.row, from_col:dragSrc.col, to_row:toR, to_col:toC})
+    });
+    const d = await r.json();
+    if (d.status === 'ok') await loadGrid();
+    else showToast(d.status === 'occupied' ? 'Cell occupied.' : 'Move failed.');
+  } catch { showToast('Move error.'); }
+  dragSrc = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Actions
+// ═══════════════════════════════════════════════════════════════════
+
+async function doReset() {
+  if (!confirm('Clear all cards?')) return;
+  await fetch('/reset', {method:'POST'});
+  gridData = {};
+  renderGrid();
+  updateCounts({revealed:0, total:rows*cols});
+  showToast('Board cleared.');
+}
+
+async function doRecalibrate() {
+  if (!confirm('Recalibrate? This clears the board.')) return;
+  await fetch('/recalibrate', {method:'POST'});
+  calibrated = false;
+  gridData = {};
+  document.getElementById('gamePanel').style.display = 'none';
+  document.getElementById('calibPanel').style.display = 'flex';
+  document.getElementById('btnRecalib').style.display = 'none';
+  document.getElementById('canvasWrap').style.display = 'none';
+  document.getElementById('btnSetRegion').disabled = true;
+  document.getElementById('btnSetRef').disabled = true;
+}
+
+// ── Keyboard shortcut ──
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && calibrated && !e.repeat) {
+    e.preventDefault();
+    doCapture();
+  }
+});
+
+// ── Toast ──
+let _tt;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

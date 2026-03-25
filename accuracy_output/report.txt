@@ -1,0 +1,38 @@
+
+===============================================================================================
+  Dragon Oracle — Accuracy Test  (13 images, grid 6×10 = 60 cells)
+===============================================================================================
+#    Image        Method          Mrk     FD     UP     BG   FD+UP     ms
+-----------------------------------------------------------------------------------------------
+1    1.jpg        screen-detect     0     18      4     38      22    83ms
+2    2.jpg        screen-detect     0     16     10     34      26    77ms
+3    3.jpg        screen-detect     0     14      9     37      23    71ms
+4    4.jpg        screen-detect     0     13     11     36      24    63ms
+5    5.jpg        screen-detect     0     11      7     42      18    62ms
+6    6.jpg        screen-detect     0      0      5     55       5    73ms
+7    7.jpg        screen-detect     0     18     10     32      28    75ms
+8    8.jpg        screen-detect     0     16      8     36      24    73ms
+9    9.jpg        screen-detect     0     16     10     34      26    62ms
+10   10.jpg       screen-detect     0     10     17     33      27    68ms
+11   11.jpg       screen-detect     0      8     15     37      23    68ms
+12   12.jpg       screen-detect     0      9     14     37      23    68ms
+13   13.jpg       screen-detect     0      6      7     47      13    72ms
+===============================================================================================
+  SUMMARY: 13/13 images processed  |  0 failed
+
+  Grid: 6×10 = 60 cells per image
+
+  Classification totals (13 images):
+    Face-Down (FD)  :   155  avg  11.9/image
+    Face-Up   (UP)  :   127  avg   9.8/image
+    Background (BG) :   498  avg  38.3/image
+
+  Card cells (FD+UP):   282  avg  21.7/image
+  Face-down rate  : 55.0%  of card cells
+  Face-up   rate  : 45.0%  of card cells
+
+  Output images saved to: accuracy_output/
+  Files per image:
+    *_warped.jpg  — warped board with grid overlay
+    *_compare.jpg — raw vs warped side-by-side
+===============================================================================================

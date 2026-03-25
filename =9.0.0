@@ -1,0 +1,6 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting mss
+  Downloading mss-10.1.0-py3-none-any.whl.metadata (6.7 kB)
+Downloading mss-10.1.0-py3-none-any.whl (24 kB)
+Installing collected packages: mss
+Successfully installed mss-10.1.0

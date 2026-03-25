@@ -1,92 +1,53 @@
+"""
+Screenshot capture and cell splitting for the Dragon Oracle grid.
+"""
+from typing import List
+
 import cv2
+import mss
 import numpy as np
-from pathlib import Path
-from typing import Optional, Tuple
 
 from dragon_oracle.config import OracleConfig
 
 
-class FrameSource:
-    """Base class for frame sources."""
-
-    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
-        raise NotImplementedError
-
-    def release(self) -> None:
-        pass
-
-
-class CameraSource(FrameSource):
-    """Live camera capture."""
-
-    def __init__(self, camera_index: int = 0, width: int = 1280, height: int = 720):
-        self._cap = cv2.VideoCapture(camera_index)
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self._target_size = (width, height)
-
-    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
-        ret, frame = self._cap.read()
-        if ret and frame is not None:
-            frame = cv2.resize(frame, self._target_size)
-        return ret, frame
-
-    def release(self) -> None:
-        self._cap.release()
+def take_full_screenshot() -> np.ndarray:
+    """Capture the entire primary monitor as a BGR numpy array."""
+    with mss.mss() as sct:
+        monitor = sct.monitors[1]  # primary monitor
+        img = np.array(sct.grab(monitor))
+    # mss returns BGRA on Windows; drop alpha channel
+    return img[:, :, :3].copy()
 
 
-class StaticImageSource(FrameSource):
-    """Iterates over a directory of images or a single image."""
-
-    def __init__(self, path: str, target_size: Tuple[int, int] = (1280, 720),
-                 loop: bool = True):
-        self._target_size = target_size
-        self._loop = loop
-        self._index = 0
-
-        p = Path(path)
-        if p.is_dir():
-            self._files = sorted(p.glob("*.jpg")) + sorted(p.glob("*.png"))
-        elif p.is_file():
-            self._files = [p]
-        else:
-            self._files = []
-
-    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
-        if not self._files:
-            return False, None
-
-        if self._index >= len(self._files):
-            if self._loop:
-                self._index = 0
-            else:
-                return False, None
-
-        img = cv2.imread(str(self._files[self._index]))
-        self._index += 1
-
-        if img is None:
-            return False, None
-
-        img = cv2.resize(img, self._target_size)
-        return True, img
-
-    @property
-    def current_filename(self) -> str:
-        if self._files and 0 < self._index <= len(self._files):
-            return self._files[self._index - 1].name
-        return ""
-
-    @property
-    def total_images(self) -> int:
-        return len(self._files)
+def crop_region(screenshot: np.ndarray, cfg: OracleConfig) -> np.ndarray:
+    """Crop a full screenshot to the calibrated board region."""
+    x = cfg.region_left
+    y = cfg.region_top
+    w = cfg.region_width
+    h = cfg.region_height
+    return screenshot[y:y + h, x:x + w].copy()
 
 
-def create_source(config: OracleConfig,
-                  static_path: Optional[str] = None) -> FrameSource:
-    """Factory: returns CameraSource or StaticImageSource."""
-    target_size = (config.process_width, config.process_height)
-    if static_path:
-        return StaticImageSource(static_path, target_size=target_size)
-    return CameraSource(config.camera_index,
-                        config.capture_width, config.capture_height)
+def split_into_cells(board_img: np.ndarray,
+                     rows: int, cols: int) -> List[List[np.ndarray]]:
+    """Divide a board image into a rows x cols grid of cell images."""
+    h, w = board_img.shape[:2]
+    cell_h = h // rows
+    cell_w = w // cols
+    cells = []
+    for r in range(rows):
+        row_cells = []
+        for c in range(cols):
+            y1 = r * cell_h
+            x1 = c * cell_w
+            row_cells.append(board_img[y1:y1 + cell_h, x1:x1 + cell_w].copy())
+        cells.append(row_cells)
+    return cells
+
+
+def get_cell_inset(cell_img: np.ndarray, inset_frac: float) -> np.ndarray:
+    """Return the inner portion of a cell, trimming inset_frac from each edge."""
+    h, w = cell_img.shape[:2]
+    dy = int(h * inset_frac)
+    dx = int(w * inset_frac)
+    return cell_img[dy:h - dy, dx:w - dx]
