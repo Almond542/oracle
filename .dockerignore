@@ -1,0 +1,12 @@
+# Ignore everything, then whitelist what the image actually needs
+**
+
+!requirements.txt
+!dragon_oracle/
+!dragon_oracle/**
+
+# Re-exclude Python cache inside the package
+dragon_oracle/__pycache__/
+dragon_oracle/**/__pycache__/
+**/*.pyc
+**/*.pyo

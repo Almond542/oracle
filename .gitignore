@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.pytest_cache
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Security — NEVER commit keys or certs
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Dev tooling (Claude / GSD / Gemini — local only)
+.agent/
+.claude/
+.gsd/
+.gemini/
+.mcp.json
+
+# Legacy simulation artefacts
+simulate.py
+sim_output/
+accuracy_output/
+test_images/
+debug_*.jpg
+
+# Pip install artefacts
+=*.0
+
+# App runtime data (board state persisted to disk)
+oracle_state.json
+
+# Docker
+.docker/

@@ -1,0 +1,48 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dragon Oracle — docker-compose
+#
+# Screen-capture notes
+# ────────────────────
+# mss needs access to the host display to take screenshots.
+#
+# Linux  : Works out-of-the-box with the X11 socket mount below.
+#          Run:  xhost +local:docker   (once per session)
+#
+# Windows: Docker Desktop (WSL2) cannot easily forward the Windows display.
+#          Install and launch VcXsrv or Xming, then set:
+#            DISPLAY=host.docker.internal:0.0
+#          in a .env file next to this compose file.
+#
+# macOS  : Install XQuartz, enable "Allow connections from network clients",
+#          then: xhost +localhost
+#          Set DISPLAY=host.docker.internal:0 in .env.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  oracle:
+    build: .
+    image: dragon-oracle:latest
+    container_name: dragon-oracle
+    restart: unless-stopped
+
+    ports:
+      - "8000:8000"
+
+    # ── Display access (Linux X11) ──
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+
+    volumes:
+      # X11 socket (Linux only — harmless on other platforms)
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      # Persist board state (oracle_state.json written by the app)
+      - oracle-data:/app/data
+
+    # Host networking gives mss the simplest path to the display on Linux.
+    # Remove this line (and adjust ports above) if you prefer bridge mode.
+    network_mode: host
+
+volumes:
+  oracle-data:
